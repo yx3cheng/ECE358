@@ -8,15 +8,15 @@ import java.util.*;
 public class Lab1 {
   private static Queue<Packet> buffer;
 
-  // arrival
   private static Generator generator;
+  private static Server server;
+
   private static int createNextPacketAt = 1;
   // 1 second = 10^6 ticks
   private static final int TICK_TIME = 1000000;
 
   private static int totalTicks;
   private static int totalPackets = 0;
-  private static int totalPacketDelay = 0;
   private static int lambda;
   private static int maxBufferSize = -1;
   // leave at -1 if buffer size is not specified
@@ -28,7 +28,6 @@ public class Lab1 {
 
   // Counters
   private static int droppedPacketCount = 0;
-  private static int idleServerCount = 0;
   private static int runningBufferSizeCount = 0;
 
   /*
@@ -56,19 +55,37 @@ public class Lab1 {
     }
 
     serviceTime = (int) ((double) packetLength / transmitRate * TICK_TIME);
+    server = new Server();
     generator = new Generator(lambda);
     buffer = new LinkedList<Packet>();
 
     start_simulation(totalTicks);
-    compute_performances();
+    compute_performances(server);
   }
 
   private static void start_simulation(int ticks) {
+
     for (int t = 1; t <= ticks; t++) {
       arrival(t);
       runningBufferSizeCount += buffer.size();
-      departure(t);
+
+      if (server.isBusy()) {
+        server.work(t);
+      } else if (!buffer.isEmpty()) {
+        try {
+          server.departure(buffer.remove(), t);
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      } else {
+        server.idle();
+      }
+
     }
+  }
+
+  private static String round(double val) {
+    return String.format("%.2f", val);
   }
 
   /*
@@ -95,41 +112,15 @@ public class Lab1 {
   }
 
   /*
-   * Check the queue for the packet, if head of the queue is empty, return 0
-   * else if the queue is non-empty delete the packet from the queue after an
-   * elapse of the deterministic service time.
-   */
-  private static void departure(int tick) {
-    Packet headPacket = buffer.peek();
-    if (headPacket == null) {
-      // Server is idle.
-      idleServerCount++;
-      return;
-    }
-
-    if (headPacket.getRemoveAtTicks() == 0) {
-      // Packet hasn't been served yet. Serve now and call delay finished.
-      headPacket.setDelayFinished(tick);
-      headPacket.setRemoveAtTicks(tick);
-    } else if (tick >= headPacket.getRemoveAtTicks()) {
-      // Packet finished processing. Remove packet
-      Packet finished = buffer.remove();
-      totalPacketDelay += finished.getDelay();
-    }
-  }
-
-  public static String round(double val) {
-    return String.format("%.2f", val);
-  }
-
-  /*
    * Calculate and display the results such as average number of packets in
    * queue, average delay in queue and idle time for the server.
    */
-  private static void compute_performances() {
+  private static void compute_performances(Server server) {
     System.out.println("E[N]: Average number of packets in the buffer/queue: " + round((double) runningBufferSizeCount / totalTicks));
-    System.out.println("E[T]: Average sojourn time: " + round((double) totalPacketDelay / totalPackets + (double) serviceTime) + "/packet");
-    System.out.println("P(idle): The proportion of time the server is idle: " + round((double) idleServerCount / totalTicks * 100) + "%");
+    System.out.println("E[T]: Average sojourn time: " + round((double) server.getTotalPacketDelay() / totalPackets + (double) serviceTime)
+        + "/packet");
+    System.out.println("P(idle): The proportion of time the server is idle: "
+        + round((double) server.getIdleServerCount() / totalTicks * 100) + "%");
     if (maxBufferSize >= 0) {
       System.out.println("P(loss): The packet loss probability: " + round((double) droppedPacketCount / totalPackets * 100) + "%");
     }
