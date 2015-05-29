@@ -56,7 +56,6 @@ public class Lab1 {
     }
 
     serviceTime = (int) ((double) packetLength / transmitRate * TICK_TIME);
-    System.out.println(serviceTime);
     generator = new Generator(lambda);
     buffer = new LinkedList<Packet>();
 
@@ -82,7 +81,6 @@ public class Lab1 {
     }
 
     double x = generator.generateExpRandomNum();
-    System.out.println(x);
     int ticksUntilNext = (int) Math.round(x * TICK_TIME);
     createNextPacketAt = tick + ticksUntilNext;
 
