@@ -1,21 +1,20 @@
 public class Generator {
 
-    private double lamda;
+  private double lambda;
 
-    public Generator(double lamda) {
-        this.lamda = lamda;
-    }
+  public Generator(double newLambda) {
+    lambda = newLambda;
+  }
 
-    public double getLamda() {
-        return lamda;
-    }
+  public double getLambda() {
+    return lambda;
+  }
 
-    public void setLamda(double lamda) {
-        this.lamda = lamda;
-    }
+  public void setLambda(double newLambda) {
+    lambda = newLambda;
+  }
 
-    public double generateExpRandomNum() {
-        return Math.log(1 - Math.random())
-                * (-1.0 / getLamda());
-    }
+  public double generateExpRandomNum() {
+    return Math.log(1 - Math.random()) * (-1.0 / lambda);
+  }
 }
