@@ -4,7 +4,7 @@ public class Server {
 
   // Counters
   private int droppedPacketCount = 0;
-  private int idleServerCount = 0;
+  private long idleServerCount = 0;
 
   private Packet currentPacket;
 
@@ -49,7 +49,7 @@ public class Server {
     return droppedPacketCount;
   }
 
-  public int getIdleServerCount() {
+  public long getIdleServerCount() {
     return idleServerCount;
   }
 }
