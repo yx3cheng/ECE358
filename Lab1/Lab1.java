@@ -11,11 +11,11 @@ public class Lab1 {
   private static Generator generator;
   private static Server server;
 
-  private static int createNextPacketAt = 1;
+  private static long createNextPacketAt = 1;
   // 1 second = 10^6 ticks
   private static final int TICK_TIME = 1000000;
 
-  private static int totalTicks;
+  private static long totalTicks;
   private static int totalPackets = 0;
   private static int lambda;
   private static int maxBufferSize = -1;
@@ -39,14 +39,14 @@ public class Lab1 {
   public static void main(String args[]) {
 
     /*
-     * ¦Ë (packets / sec) L (bits) C (bits / sec) p (L¦Ë / c)
+     * (packets / sec) L (bits) C (bits / sec) p (L / c)
      */
     if (args.length < 4 || args.length > 5) {
-      System.out.println("Arguments: totalTicks(N) Lambda(¦Ë) packetLength(L) transmissionRate(C) [bufferSize(K)]");
+      System.out.println("Arguments: totalTicks(N) Lambda() packetLength(L) transmissionRate(C) [bufferSize(K)]");
       return;
     }
 
-    totalTicks = Integer.parseInt(args[0]);
+    totalTicks = Long.parseLong(args[0]);
     lambda = Integer.parseInt(args[1]);
     packetLength = Integer.parseInt(args[2]);
     transmitRate = Integer.parseInt(args[3]);
@@ -63,9 +63,9 @@ public class Lab1 {
     compute_performances(server);
   }
 
-  private static void start_simulation(int ticks) {
+  private static void start_simulation(long ticks) {
 
-    for (int t = 1; t <= ticks; t++) {
+    for (long t = 1; t <= ticks; t++) {
       arrival(t);
       runningBufferSizeCount += buffer.size();
 
@@ -92,7 +92,7 @@ public class Lab1 {
    * Generate a packet as per the exponential distribution and insert the packet
    * in the queue (an array or a linked list)
    */
-  private static void arrival(int tick) {
+  private static void arrival(long tick) {
     if (tick < createNextPacketAt) {
       return;
     }

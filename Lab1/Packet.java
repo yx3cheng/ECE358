@@ -1,29 +1,29 @@
 public class Packet {
 
-  private int startTime;
-  private int delayFinished;
-  private int serviceTime;
-  private int removeAtTicks;
+  private long startTime;
+  private long delayFinished;
+  private long serviceTime;
+  private long removeAtTicks;
 
-  public Packet(int newStartTime, int newServiceTime) {
+  public Packet(long newStartTime, long newServiceTime) {
     startTime = newStartTime;
     serviceTime = newServiceTime;
     removeAtTicks = 0;
   }
 
-  public int getRemoveAtTicks() {
+  public long getRemoveAtTicks() {
     return this.removeAtTicks;
   }
 
-  public void setDelayFinished(int currentTick) {
+  public void setDelayFinished(long currentTick) {
     delayFinished = currentTick;
   }
 
-  public void setRemoveAtTicks(int currentTick) {
+  public void setRemoveAtTicks(long currentTick) {
     removeAtTicks = currentTick + serviceTime;
   }
 
-  public int getDelay() {
+  public long getDelay() {
     return delayFinished - startTime;
   }
 

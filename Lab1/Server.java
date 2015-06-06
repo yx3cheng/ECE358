@@ -1,7 +1,6 @@
 public class Server {
 
   private int totalPacketDelay = 0;
-  // leave at -1 if buffer size is not specified
 
   // Counters
   private int droppedPacketCount = 0;
@@ -13,7 +12,7 @@ public class Server {
     return (currentPacket != null);
   }
 
-  public void work(int tick) {
+  public void work(long tick) {
     if (tick >= currentPacket.getRemoveAtTicks()) {
       // Packet finished processing. Remove packet
       totalPacketDelay += currentPacket.getDelay();
@@ -30,7 +29,7 @@ public class Server {
    * else if the queue is non-empty delete the packet from the queue after an
    * elapse of the deterministic service time.
    */
-  public void departure(Packet packet, int tick) throws Exception {
+  public void departure(Packet packet, long tick) throws Exception {
     if (currentPacket != null)
       throw new Exception("server is busy");
     if (packet.getRemoveAtTicks() != 0)
