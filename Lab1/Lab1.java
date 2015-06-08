@@ -16,7 +16,7 @@ public class Lab1 {
   private static final int TICK_TIME = 1000000;
 
   private static long totalTicks;
-  private static int totalPackets = 0;
+  private static long totalPackets = 0;
   private static int lambda;
   private static int maxBufferSize = -1;
   // leave at -1 if buffer size is not specified
@@ -27,8 +27,8 @@ public class Lab1 {
   private static int serviceTime;
 
   // Counters
-  private static int droppedPacketCount = 0;
-  private static int runningBufferSizeCount = 0;
+  private static long droppedPacketCount = 0;
+  private static long runningBufferSizeCount = 0;
 
   /*
    * Initialize important terms such as t_arrival = exponential r.v, # of

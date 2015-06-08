@@ -1,6 +1,6 @@
 public class Server {
 
-  private int totalPacketDelay = 0;
+  private long totalPacketDelay = 0;
 
   // Counters
   private int droppedPacketCount = 0;
@@ -41,7 +41,7 @@ public class Server {
     currentPacket.setRemoveAtTicks(tick);
   }
 
-  public int getTotalPacketDelay() {
+  public long getTotalPacketDelay() {
     return totalPacketDelay;
   }
 
