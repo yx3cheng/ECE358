@@ -104,11 +104,11 @@ public class Lab1 {
     if (maxBufferSize < 0 || buffer.size() < maxBufferSize) {
       // if buffer is unbounded, or bounded buffer is not full
       buffer.add(new Packet(tick, serviceTime));
+      totalPackets++;
     } else {
       // buffer full; drop packet
       droppedPacketCount++;
     }
-    totalPackets++;
   }
 
   /*
