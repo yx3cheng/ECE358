@@ -10,11 +10,6 @@ using namespace std;
 #define JAMMING 3
 #define BACKOFF 4
 
-std::vector<Node*> nodes;
-std::vector<Packet*> packets;
-int busy_counter = 0;
-Generator generator;
-
 struct Node {
 	int m_id;
 	int m_state;
@@ -29,14 +24,21 @@ struct Packet {
 struct Generator {
 	double lambda;
 
+	Generator() {}
 	Generator(double lambda): lambda(lambda) {}
 	int generateExpRandomNum() {
 		return (int)((-1 / lambda) * log(1 - rand()));
 	}
 };
 
+
+std::vector<Node*> nodes;
+std::vector<Packet*> packets;
+int busy_counter = 0;
+Generator generator;
+
 bool hasPacketInQueue (int a_id) {
-	for (int i = 0; i < packets; i++) {
+	for (int i = 0; i < packets.size(); i++) {
 		if (packets[i]->m_node_id == a_id) {
 			return true;
 		}
@@ -88,7 +90,7 @@ void updateSimulation (struct Node* a_node) {
 	}
 }
 
-Start_simulation (int a_totalticks,int a_N,int a_A,int a_W,int a_L) {
+void Start_simulation (int a_totalticks,int a_N,int a_A,int a_W,int a_L) {
 	for (int i = 0; i <= a_totalticks; i++) {
 		for (int n = 0; n <= a_N; n++) {
 			updateSimulation(nodes[n]);
@@ -114,8 +116,8 @@ int main(int argc, char** argv) {
 		P = atoi(argv[5]);
 
 	// set generator lamda
-	generator.lamda = A;
-	
+	generator.lambda = A;
+
 	// nodes
 	for (int i = 0; i < N; i++) {
 		Node* node = new Node[sizeof(Node)];
