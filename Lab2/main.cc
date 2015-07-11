@@ -35,19 +35,53 @@ struct Generator {
 	}
 };
 
+bool hasPacketInQueue (int a_id) {
+	for (int i = 0; i < packets; i++) {
+		if (packets[i]->m_node_id == a_id) {
+			return true;
+		}
+	}
+	return false;
+}
 
 void updateSimulation (struct Node* a_node) {
 	a_node->m_time++;
+	if (a_node->m_time == a_node->m_genTime) {
+		Packet* packet = new Packet[sizeof(Packet)];
+		packet->m_node_id = a_node->m_id;
+	}
+
 	switch (a_node->m_state) {
 		case IDLE:
+			if (hasPacketInQueue(a_node->m_id)) {
+				a_node->m_state = SENSING;
+			}
 			break;
 		case SENSING:
+			// TODO sense for 96 bit-time
+			if (busy_counter == 0) {
+				a_node->m_state = TRANSMIT;
+			} else {
+				a_node->m_state = SENSING;
+			}
 			break;
 		case TRANSMIT:
+			busy_counter++;
+			// TODO calculate transmission time
+			if (busy_counter >= 2) {
+				a_node->m_state = JAMMING;
+			} else {
+				a_node->m_state = IDLE;
+			}
 			break;
 		case JAMMING:
+			busy_counter++;
+			// TODO transmit the jamming signal on the medium for 48 bit-time
+			a_node->m_state = BACKOFF;
 			break;
 		case BACKOFF:
+			// TODO back off for R*512 bit time
+			a_node->m_state = SENSING;
 			break;
 		default:
 			break;
