@@ -238,8 +238,8 @@ void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
 }
 
 void compute_performances () {
-  double throughput = (double)transmittedPackets / T;
-  double averageDelay = (totalDelay / ticksPerSecond) / (double)transmittedPackets;
+  double throughput = (double) transmittedPackets / T;
+  double averageDelay = ((double) totalDelay / ticksPerSecond) / transmittedPackets;
   cout << "Throughput is " << throughput << " packets per second." << endl;
   cout << "The average delay is " << averageDelay << " seconds." << endl;
 }

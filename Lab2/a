@@ -1,35 +1,37 @@
+echo 'begin'
 ./lab2-persistent 20 5 1000000 12000
 ./lab2-persistent 40 5 1000000 12000
 ./lab2-persistent 60 5 1000000 12000
 ./lab2-persistent 80 5 1000000 12000
 ./lab2-persistent 100 5 1000000 12000
-
+echo '--'
 ./lab2-persistent 20 6 1000000 12000
 ./lab2-persistent 40 6 1000000 12000
 ./lab2-persistent 60 6 1000000 12000
 ./lab2-persistent 80 6 1000000 12000
 ./lab2-persistent 100 6 1000000 12000
-
+echo '--'
 ./lab2-persistent 20 7 1000000 12000
 ./lab2-persistent 40 7 1000000 12000
 ./lab2-persistent 60 7 1000000 12000
 ./lab2-persistent 80 7 1000000 12000
 ./lab2-persistent 100 7 1000000 12000
-
+echo '--'
 ./lab2-persistent 20 4 1000000 12000
 ./lab2-persistent 20 8 1000000 12000
 ./lab2-persistent 20 12 1000000 12000
 ./lab2-persistent 20 16 1000000 12000
 ./lab2-persistent 20 20 1000000 12000
-
+echo '--'
 ./lab2-persistent 30 4 1000000 12000
 ./lab2-persistent 30 8 1000000 12000
 ./lab2-persistent 30 12 1000000 12000
 ./lab2-persistent 30 16 1000000 12000
 ./lab2-persistent 30 20 1000000 12000
-
+echo '--'
 ./lab2-persistent 40 4 1000000 12000
 ./lab2-persistent 40 8 1000000 12000
 ./lab2-persistent 40 12 1000000 12000
 ./lab2-persistent 40 16 1000000 12000
 ./lab2-persistent 40 20 1000000 12000
+echo 'done'
