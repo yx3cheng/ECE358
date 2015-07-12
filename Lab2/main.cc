@@ -3,6 +3,7 @@
 #include <iostream>
 #include <queue>
 #include <vector>
+#include <climits>
 using namespace std;
 
 #ifdef DEBUG
@@ -57,9 +58,11 @@ struct Generator {
   }
 } generator;
 
-int T = 10; // Number of seconds to simulate.
+int T = 2; // Number of seconds to simulate.
 long ticksPerSecond = 100000000; // Resolution of simulation.
 vector<Node*> nodes;
+long transmittedPackets = 0;
+long totalDelay = 0;
 
 medium_states medium_sense(struct Node* a_node, long current_tick) {
   int num_broadcasting_nodes = 0;
@@ -174,6 +177,8 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         debug_out << "end transmission" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
+        transmittedPackets++;
+        totalDelay += current_tick - a_node->m_packet_queue.front()->m_generated_time;
         delete a_node->m_packet_queue.front();
         a_node->m_packet_queue.pop();
       }
@@ -232,7 +237,10 @@ void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
 }
 
 void compute_performances () {
-  // double throughput = successfulPackets / T;
+  double throughput = (double)transmittedPackets / T;
+  double averageDelay = (totalDelay / ticksPerSecond) / (double)transmittedPackets;
+  cout << "Throughput is " << throughput << " packets per second." << endl;
+  cout << "The average delay is " << averageDelay << " seconds." << endl;
 }
 
 int main(int argc, char** argv) {
@@ -264,7 +272,7 @@ int main(int argc, char** argv) {
   }
 
   start_simulation(T * ticksPerSecond, N, A, W, L);
-  // compute_performances();
+  compute_performances();
 
   for (int i = 0; i < N; i++) {
     while (!nodes[i]->m_packet_queue.empty()) {
