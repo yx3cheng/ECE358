@@ -1,4 +1,4 @@
-CXX      = g++
+CXX      = clang++
 CXXFLAGS = -Wall
 
 EXECS  = lab2-persistent lab2-non-persistent lab2-p-persistent
