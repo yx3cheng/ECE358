@@ -62,14 +62,14 @@ long ticksPerSecond = 100000000; // Resolution of simulation.
 vector<Node*> nodes;
 
 medium_states medium_sense(struct Node* a_node, long current_tick) {
-  int busy_counter = 0;
+  int num_broadcasting_nodes = 0;
 
   for (int i = 0; i < nodes.size(); i++) {
     if (nodes[i]->m_state != TRANSMIT && nodes[i]->m_state != JAMMING)
       continue;
 
     if (a_node->m_id == nodes[i]->m_id) {
-      busy_counter++;
+      num_broadcasting_nodes++;
     } else {
       int distance = abs(nodes[i]->m_id - a_node->m_id) * 10;
       double prop_delay = (double) ticksPerSecond * distance / 200000000; // 2 * 10^8
@@ -77,14 +77,14 @@ medium_states medium_sense(struct Node* a_node, long current_tick) {
       if (prop_delay < current_tick - nodes[i]->m_tick_at_start_transmission) {
         // Current node sees node i's transmission since it has been transmitting
         // longer than the propagation delay.
-        busy_counter++;
+        num_broadcasting_nodes++;
       }
     }
   }
 
-  if (busy_counter == 0) {
+  if (num_broadcasting_nodes == 0) {
     return FREE;
-  } else if (busy_counter == 1) {
+  } else if (num_broadcasting_nodes == 1) {
     return BUSY;
   } else {
     return COLLISION;
@@ -111,19 +111,20 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         a_node->m_time = 0;
         if (a_node->m_sense_result_mask == FREE) {
           a_node->m_state = TRANSMIT;
-          a_node->m_tick_at_start_transmission = current_tick;
+          a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "transmitting" << endl;
         } else {
           // debug_out << "redo sensing" << endl;
           a_node->m_sense_result_mask = 0;
         }
       }
+
 #elif NON_PERSISTENT
       if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
         a_node->m_time = 0;
         if (a_node->m_sense_result_mask == FREE) {
           a_node->m_state = TRANSMIT;
-          a_node->m_tick_at_start_transmission = current_tick;
+          a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "transmitting" << endl;
           a_node->m_packet_queue.front()->m_sensing_tries = 0;
         } else {
@@ -146,6 +147,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
           a_node->m_state = SENSING_WAIT;
         }
       }
+
 #elif PRB_PERSISTENT
 
 #endif
