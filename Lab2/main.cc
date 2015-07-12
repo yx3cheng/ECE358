@@ -41,23 +41,20 @@ struct Generator {
     srand(time(NULL));
   }
   double generateExpRandomNum() {
-    double U = ((double) (rand() % 1000000000) / 1000000000);
+    double U = ((double) (rand() % INT_MAX) / INT_MAX);
     return ((-1.0 / lambda) * log(1 - U));
   }
 } generator;
 
-int T = 100000; // Number of seconds to simulate.
-long ticksPerSecond = 100000000; // Resolution of simulation
+int T = 5; // Number of seconds to simulate.
+long ticksPerSecond = 100000000; // Resolution of simulation.
 vector<Node*> nodes;
 
 medium_states medium_sense(struct Node* a_node, long current_tick) {
   int busy_counter = 0;
 
   for (int i = 0; i < nodes.size(); i++) {
-    if (nodes[i]->m_state == JAMMING)
-      return COLLISION;
-
-    if (nodes[i]->m_state != TRANSMIT)
+    if (nodes[i]->m_state != TRANSMIT && nodes[i]->m_state != JAMMING)
       continue;
 
     if (a_node->m_id == nodes[i]->m_id) {
@@ -106,7 +103,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
           a_node->m_tick_at_start_transmission = current_tick;
           debug_out << "transmitting" << endl;
         } else {
-          debug_out << "redo sensing" << endl;
+          // debug_out << "redo sensing" << endl;
           a_node->m_sense_result_mask = 0;
         }
       }
@@ -121,8 +118,9 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
       if (medium_sense(a_node, current_tick) == COLLISION) {
         a_node->m_state = JAMMING;
         a_node->m_time = 0;
+        a_node->m_time_to_backoff = 0;
         debug_out << "jamming" << endl;
-      } else if (a_node->m_time >= (double) ticksPerSecond * a_L / a_W)  {
+      } else if (a_node->m_time == (double) ticksPerSecond * a_L / a_W)  {
         debug_out << "end transmission" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
@@ -140,15 +138,18 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
 
     case BACKOFF:
       if (a_node->m_time_to_backoff == 0) {
+        double U = ((double) (rand() % INT_MAX) / INT_MAX);
         a_node->m_packet_queue.front()->m_i++;
-        a_node->m_time_to_backoff =
-            rand() % (int) pow(2, a_node->m_packet_queue.front()->m_i)
-              * ticksPerSecond * 512.0 / a_W;
-        debug_out << "backoff for " << a_node->m_time_to_backoff << " ticks" << endl;
+        a_node->m_time_to_backoff = (ticksPerSecond * 512.0 / a_W) *
+            U * pow(2, a_node->m_packet_queue.front()->m_i);
+        debug_out << "backoff for " << a_node->m_time_to_backoff << " ticks i="
+                  << a_node->m_packet_queue.front()->m_i
+                  << " R=" << U * pow(2, a_node->m_packet_queue.front()->m_i) << endl;
       }
 
       if (a_node->m_packet_queue.front()->m_i > 10) {
         // Error. Give up on this frame.
+        debug_out << "error reached saturation" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
         a_node->m_packet_queue.pop();
@@ -156,6 +157,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         debug_out << "backoff done start sensing" << endl;
         a_node->m_state = SENSING;
         a_node->m_time = 0;
+        a_node->m_time_to_backoff = 0;
       }
       break;
 
@@ -167,7 +169,6 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
 void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
   for (long current_tick = 0; current_tick < a_totalticks; current_tick++) {
     for (int n = 0; n < a_N; n++) { // loop for number of nodes
-
       if (nodes[n]->m_generate_at_tick == current_tick) { // generate new packet
         nodes[n]->m_packet_queue.push(new Packet(current_tick));
         nodes[n]->m_generate_at_tick = current_tick + generator.generateExpRandomNum() * ticksPerSecond;
@@ -204,6 +205,7 @@ int main(int argc, char** argv) {
     node->m_id = i;
     node->m_state = IDLE;
     node->m_generate_at_tick = generator.generateExpRandomNum() * ticksPerSecond;
+    node->m_sense_result_mask = 0;
     node->m_time_to_backoff = 0;
     nodes.push_back(node);
   }
