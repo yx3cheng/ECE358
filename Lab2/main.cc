@@ -11,17 +11,26 @@ using namespace std;
   #define debug_out 0 && cout
 #endif
 
-enum station_states { IDLE, SENSING, TRANSMIT, JAMMING, BACKOFF };
+enum station_states { IDLE, SENSING, SENSING_WAIT, TRANSMIT, JAMMING, BACKOFF };
 enum medium_states { FREE = 0x1, BUSY = 0x2, COLLISION = 0x4 };
 
 struct Packet {
   long m_generated_time;
   int m_i;
+#if NON_PERSISTENT
+  int m_sensing_tries;
+#endif
 
-  Packet(long generatedTime) : m_generated_time(generatedTime), m_i(0) {}
+  Packet(long generatedTime) : m_generated_time(generatedTime), m_i(0) {
+#ifdef NON_PERSISTENT
+    m_sensing_tries = 0;
+#endif
+  }
 };
 
 struct Node {
+  queue<Packet*> m_packet_queue;
+
   int m_id;
   station_states m_state;
   long m_time;
@@ -31,7 +40,9 @@ struct Node {
   int m_sense_result_mask;
   long m_time_to_backoff;
 
-  queue<Packet*> m_packet_queue;
+#if NON_PERSISTENT
+  int m_next_sensing_at_tick;
+#endif
 };
 
 struct Generator {
@@ -46,7 +57,7 @@ struct Generator {
   }
 } generator;
 
-int T = 5; // Number of seconds to simulate.
+int T = 10; // Number of seconds to simulate.
 long ticksPerSecond = 100000000; // Resolution of simulation.
 vector<Node*> nodes;
 
@@ -108,11 +119,47 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         }
       }
 #elif NON_PERSISTENT
+      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
+        a_node->m_time = 0;
+        if (a_node->m_sense_result_mask == FREE) {
+          a_node->m_state = TRANSMIT;
+          a_node->m_tick_at_start_transmission = current_tick;
+          debug_out << "transmitting" << endl;
+          a_node->m_packet_queue.front()->m_sensing_tries = 0;
+        } else {
+          a_node->m_packet_queue.front()->m_sensing_tries++;
+          if (a_node->m_packet_queue.front()->m_sensing_tries > 10) {
+            debug_out << "error reached sensing trials saturation" << endl;
+            a_node->m_state = IDLE;
+            a_node->m_time = 0;
+            a_node->m_packet_queue.pop();
+            break;
+          }
+          double U = ((double) (rand() % INT_MAX) / INT_MAX);
+          a_node->m_next_sensing_at_tick = (ticksPerSecond) *
+              U * pow(2, a_node->m_packet_queue.front()->m_i);
+          debug_out << "wait for next sensing in "
+                    << a_node->m_next_sensing_at_tick
+                    << " ticks tries="
+                    << a_node->m_packet_queue.front()->m_sensing_tries << endl;
+          a_node->m_sense_result_mask = 0;
+          a_node->m_state = SENSING_WAIT;
+        }
+      }
 #elif PRB_PERSISTENT
 
 #endif
 
       break;
+
+#ifdef NON_PERSISTENT
+    case SENSING_WAIT:
+      if (a_node->m_time == a_node->m_next_sensing_at_tick) {
+        a_node->m_state = SENSING;
+        a_node->m_time = 0;
+      }
+      break;
+#endif
 
     case TRANSMIT:
       if (medium_sense(a_node, current_tick) == COLLISION) {
@@ -207,6 +254,7 @@ int main(int argc, char** argv) {
     node->m_generate_at_tick = generator.generateExpRandomNum() * ticksPerSecond;
     node->m_sense_result_mask = 0;
     node->m_time_to_backoff = 0;
+
     nodes.push_back(node);
   }
 
