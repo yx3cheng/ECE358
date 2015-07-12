@@ -1,41 +1,40 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
-#include <vector>
 #include <queue>
+#include <vector>
 using namespace std;
 
-#define IDLE 0
-#define SENSING 1
-#define TRANSMIT 2
-#define JAMMING 3
-#define BACKOFF 4
-#define BUSY 5
-#define COLLISION 6
+#ifdef DEBUG
+  #define debug_out cout
+#else
+  #define debug_out 0 && cout
+#endif
+
+
+
+enum station_states { IDLE, SENSING, TRANSMIT, JAMMING, BACKOFF };
+enum medium_states { FREE = 0x1, BUSY = 0x2, COLLISION = 0x4 };
 
 struct Packet {
-  int m_generated_time;
+  long m_generated_time;
   int m_i;
 
-  Packet(int generatedTime) : m_generated_time(generatedTime), m_i(0) {}
+  Packet(long generatedTime) : m_generated_time(generatedTime), m_i(0) {}
 };
 
 struct Node {
   int m_id;
-  int m_state;
-  int m_nextState;
-  int m_time;
-  long long m_genTime;
-  int m_transTime;
+  station_states m_state;
+  long m_time;
+  long m_generate_at_tick;
+  long m_tick_at_start_transmission;
+
+  int m_sense_result_mask;
+  long m_time_to_backoff;
 
   queue<Packet*> m_packet_queue;
 };
-
-int busy_counter = 0;
-int successfulPackets = 0;
-int T = 10;
-int ticksPerSecond = 1000000;
-static std::vector<Node*> nodes;
 
 struct Generator {
   double lambda;
@@ -44,27 +43,41 @@ struct Generator {
     srand(time(NULL));
   }
   double generateExpRandomNum() {
-    double U = ((double) (rand() % 1000) / 1000);
-    return ((-1 / lambda) * log(1 - U));
+    double U = ((double) (rand() % 1000000000) / 1000000000);
+    return ((-1.0 / lambda) * log(1 - U));
   }
 } generator;
 
-int medium_sense(struct Node* a_node) {
+int T = 100000; // Number of seconds to simulate.
+long ticksPerSecond = 100000000; // Resolution of simulation
+vector<Node*> nodes;
+
+medium_states medium_sense(struct Node* a_node, long current_tick) {
   int busy_counter = 0;
 
-  int transmitting_id;
   for (int i = 0; i < nodes.size(); i++) {
-    if (nodes[i]->m_state == TRANSMIT) {
-      if (a_node->m_id != nodes[i]->m_id)
-        transmitting_id = i;
+    if (nodes[i]->m_state == JAMMING)
+      return COLLISION;
+
+    if (nodes[i]->m_state != TRANSMIT)
+      continue;
+
+    if (a_node->m_id == nodes[i]->m_id) {
       busy_counter++;
+    } else {
+      int distance = abs(nodes[i]->m_id - a_node->m_id) * 10;
+      double prop_delay = (double) ticksPerSecond * distance / 200000000; // 2 * 10^8
+
+      if (prop_delay < current_tick - nodes[i]->m_tick_at_start_transmission) {
+        // Current node sees node i's transmission since it has been transmitting
+        // longer than the propagation delay.
+        busy_counter++;
+      }
     }
   }
-  // Calculate wire distance between transmitting station and current station.
-  int distance = abs(transmitting_id - a_node->m_id) * 10;
 
   if (busy_counter == 0) {
-    return IDLE;
+    return FREE;
   } else if (busy_counter == 1) {
     return BUSY;
   } else {
@@ -72,62 +85,78 @@ int medium_sense(struct Node* a_node) {
   }
 }
 
-void tick(struct Node* a_node) {
+void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
   a_node->m_time++;
 
   switch (a_node->m_state) {
     case IDLE:
       if (!a_node->m_packet_queue.empty()) {
-        a_node->m_nextState = SENSING;
+        debug_out << current_tick << " start sensing " << a_node->m_id << endl;
+        a_node->m_state = SENSING;
+        a_node->m_time = 0;
       }
       break;
 
     case SENSING:
+      a_node->m_sense_result_mask |= medium_sense(a_node, current_tick);
+
 #ifdef ONE_PERSISTENT
-      if (a_node->m_time == 96 * ticksPerSecond) {
+      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
         a_node->m_time = 0;
-        if (medium_sense(a_node) != IDLE) {
+        if (a_node->m_sense_result_mask == FREE) {
           a_node->m_state = TRANSMIT;
-          a_node->m_transTime = 0; // ???
+          a_node->m_tick_at_start_transmission = current_tick;
+          debug_out << current_tick << " transmitting " << a_node->m_id << endl;
+        } else {
+          debug_out << current_tick << " redo sensing " << a_node->m_id << endl;
+          a_node->m_sense_result_mask = 0;
         }
       }
 #elif NON_PERSISTENT
-      if (a_node->m_time == 96 * ticksPerSecond) {
-        a_node->m_time = 0;
-        if (medium_sense(a_node) != IDLE) {
-          a_node->m_state = TRANSMIT;
-        } else {
-          // wait randomly and sense again.
-        }
-      }
 #elif PRB_PERSISTENT
 
 #endif
+
       break;
 
     case TRANSMIT:
-    // TODO calculate transmission time
-      if (medium_sense(a_node) == COLLISION) {
+      if (medium_sense(a_node, current_tick) == COLLISION) {
         a_node->m_state = JAMMING;
         a_node->m_time = 0;
-      } else {
-        successfulPackets++;
+        debug_out << current_tick << " jamming " << a_node->m_id << endl;
+      } else if (a_node->m_time >= (double) (ticksPerSecond * a_L) / a_W)  {
+        debug_out << current_tick << " end transmission " << a_node->m_id << endl;
         a_node->m_state = IDLE;
+        a_node->m_time = 0;
+        a_node->m_packet_queue.pop();
       }
       break;
 
     case JAMMING:
-      if (a_node->m_time == 48 * ticksPerSecond) {
+      if (a_node->m_time == ticksPerSecond * 48.0 / a_W) {
         a_node->m_state = BACKOFF;
         a_node->m_time = 0;
+        debug_out << current_tick << " finished jamming " << a_node->m_id << endl;
       }
       break;
 
     case BACKOFF:
-      if (a_node->m_time
-            == rand() % (int) pow(2, a_node->m_packet_queue.front()->m_i) * 512 * ticksPerSecond) {
+      if (a_node->m_time_to_backoff == 0) {
+        a_node->m_packet_queue.front()->m_i++;
+        a_node->m_time_to_backoff
+            = rand() % (int) pow(2, a_node->m_packet_queue.front()->m_i)
+              * ticksPerSecond * 512.0 / a_W;
+      }
+
+      if (a_node->m_packet_queue.front()->m_i > 10) {
+        // Error. Give up on this frame.
+        a_node->m_state = IDLE;
         a_node->m_time = 0;
+        a_node->m_packet_queue.pop();
+      } else if (a_node->m_time == a_node->m_time_to_backoff) {
+        debug_out << current_tick << " backoff done start sensing " << a_node->m_id << endl;
         a_node->m_state = SENSING;
+        a_node->m_time = 0;
       }
       break;
 
@@ -136,16 +165,17 @@ void tick(struct Node* a_node) {
   }
 }
 
-void start_simulation (int a_totalticks,int a_N,int a_A,int a_W,int a_L) {
-  for (int current_tick = 0; current_tick <= a_totalticks; current_tick++) {
+void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
+  for (long current_tick = 0; current_tick < a_totalticks; current_tick++) {
     for (int n = 0; n < a_N; n++) { // loop for number of nodes
 
-      if (nodes[n]->m_genTime == current_tick) { // generate new packet
+      if (nodes[n]->m_generate_at_tick == current_tick) { // generate new packet
+        // debug_out << current_tick << " new packet for " << n << endl;
         nodes[n]->m_packet_queue.push(new Packet(current_tick));
-        nodes[n]->m_genTime = current_tick + generator.generateExpRandomNum() * ticksPerSecond;
+        nodes[n]->m_generate_at_tick = current_tick + generator.generateExpRandomNum() * ticksPerSecond;
       }
 
-      tick(nodes[n]);
+      tick(nodes[n], current_tick, a_W, a_L);
     }
   }
 }
@@ -165,7 +195,7 @@ int main(int argc, char** argv) {
   W = atoi(argv[3]); // LAN throughput in bits per second
   L = atoi(argv[4]); // Packet length in bits
   if (argc == 6)
-    P = atoi(argv[5]); // persistence parameter
+    P = atoi(argv[5]); // Persistence parameter
 
   // set generator lamda
   generator.lambda = A;
@@ -175,7 +205,8 @@ int main(int argc, char** argv) {
     Node* node = new Node();
     node->m_id = i;
     node->m_state = IDLE;
-    node->m_genTime = generator.generateExpRandomNum() * ticksPerSecond;
+    node->m_generate_at_tick = generator.generateExpRandomNum() * ticksPerSecond;
+    node->m_time_to_backoff = 0;
     nodes.push_back(node);
   }
 
