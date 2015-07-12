@@ -77,7 +77,7 @@ medium_states medium_sense(struct Node* a_node, long current_tick) {
       int distance = abs(nodes[i]->m_id - a_node->m_id) * 10;
       double prop_delay = (double) ticksPerSecond * distance / 200000000; // 2 * 10^8
 
-      if (prop_delay < current_tick - nodes[i]->m_tick_at_start_transmission) {
+      if (prop_delay <= current_tick - nodes[i]->m_tick_at_start_transmission) {
         // Current node sees node i's transmission since it has been transmitting
         // longer than the propagation delay.
         num_broadcasting_nodes++;
@@ -115,7 +115,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         if (a_node->m_sense_result_mask == FREE) {
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
-          debug_out << "transmitting" << endl;
+          debug_out << "clear to transmit" << endl;
         } else {
           // debug_out << "redo sensing" << endl;
           a_node->m_sense_result_mask = 0;
@@ -128,7 +128,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         if (a_node->m_sense_result_mask == FREE) {
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
-          debug_out << "transmitting" << endl;
+          debug_out << "clear to transmit" << endl;
           a_node->m_packet_queue.front()->m_sensing_tries = 0;
         } else {
           a_node->m_packet_queue.front()->m_sensing_tries++;
