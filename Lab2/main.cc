@@ -34,6 +34,8 @@ struct Node {
   int m_sense_result_mask;
   long m_time_to_backoff;
 
+  long m_finished_transmit_at_tick;
+
 #if NON_PERSISTENT
   int m_next_sensing_at_tick;
 #endif
@@ -61,18 +63,23 @@ medium_states medium_sense(struct Node* a_node, long current_tick) {
   int num_broadcasting_nodes = 0;
 
   for (int i = 0; i < nodes.size(); i++) {
-    if (nodes[i]->m_state != TRANSMIT && nodes[i]->m_state != JAMMING)
-      continue;
+    int distance = abs(nodes[i]->m_id - a_node->m_id) * 10;
+    double prop_delay = (double) ticksPerSecond * distance / 200000000; // 2 * 10^8
 
-    if (a_node->m_id == nodes[i]->m_id) {
-      num_broadcasting_nodes++;
+    if (nodes[i]->m_state == TRANSMIT || nodes[i]->m_state == JAMMING) {
+      if (a_node->m_id == nodes[i]->m_id) {
+        num_broadcasting_nodes++;
+      } else {
+        if (prop_delay <= current_tick - nodes[i]->m_tick_at_start_transmission) {
+          // Current node sees node i's transmission since it has been transmitting
+          // longer than the propagation delay.
+          num_broadcasting_nodes++;
+        }
+      }
     } else {
-      int distance = abs(nodes[i]->m_id - a_node->m_id) * 10;
-      double prop_delay = (double) ticksPerSecond * distance / 200000000; // 2 * 10^8
-
-      if (prop_delay <= current_tick - nodes[i]->m_tick_at_start_transmission) {
-        // Current node sees node i's transmission since it has been transmitting
-        // longer than the propagation delay.
+      if (prop_delay > current_tick - nodes[i]->m_finished_transmit_at_tick) {
+        // Even though node i is not transmitting, it was recently transmitting
+        // and the current node still senses the medium as busy.
         num_broadcasting_nodes++;
       }
     }
@@ -170,6 +177,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         debug_out << "end transmission" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
+        a_node->m_finished_transmit_at_tick = current_tick;
         transmittedPackets++;
         totalDelay += current_tick - a_node->m_packet_queue.front()->m_generated_time;
         delete a_node->m_packet_queue.front();
@@ -260,6 +268,7 @@ int main(int argc, char** argv) {
     node->m_generate_at_tick = generator.generateExpRandomNum() * ticksPerSecond;
     node->m_sense_result_mask = 0;
     node->m_time_to_backoff = 0;
+    node->m_finished_transmit_at_tick = 0;
 
     nodes.push_back(node);
   }
