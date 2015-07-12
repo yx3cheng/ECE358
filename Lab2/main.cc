@@ -18,15 +18,8 @@ enum medium_states { FREE = 0x1, BUSY = 0x2, COLLISION = 0x4 };
 struct Packet {
   long m_generated_time;
   int m_i;
-#if NON_PERSISTENT
-  int m_sensing_tries;
-#endif
 
-  Packet(long generatedTime) : m_generated_time(generatedTime), m_i(0) {
-#ifdef NON_PERSISTENT
-    m_sensing_tries = 0;
-#endif
-  }
+  Packet(long generatedTime) : m_generated_time(generatedTime), m_i(0) {}
 };
 
 struct Node {
@@ -129,10 +122,10 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "clear to transmit" << endl;
-          a_node->m_packet_queue.front()->m_sensing_tries = 0;
+          a_node->m_packet_queue.front()->m_i = 0;
         } else {
-          a_node->m_packet_queue.front()->m_sensing_tries++;
-          if (a_node->m_packet_queue.front()->m_sensing_tries > 10) {
+          a_node->m_packet_queue.front()->m_i++;
+          if (a_node->m_packet_queue.front()->m_i > 10) {
             debug_out << "error reached sensing trials saturation" << endl;
             a_node->m_state = IDLE;
             a_node->m_time = 0;
@@ -146,7 +139,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
           debug_out << "wait for next sensing in "
                     << a_node->m_next_sensing_at_tick
                     << " ticks tries="
-                    << a_node->m_packet_queue.front()->m_sensing_tries << endl;
+                    << a_node->m_packet_queue.front()->m_i << endl;
           a_node->m_sense_result_mask = 0;
           a_node->m_state = SENSING_WAIT;
         }
