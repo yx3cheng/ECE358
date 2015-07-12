@@ -133,6 +133,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
             debug_out << "error reached sensing trials saturation" << endl;
             a_node->m_state = IDLE;
             a_node->m_time = 0;
+            delete a_node->m_packet_queue.front();
             a_node->m_packet_queue.pop();
             break;
           }
@@ -173,6 +174,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         debug_out << "end transmission" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
+        delete a_node->m_packet_queue.front();
         a_node->m_packet_queue.pop();
       }
       break;
@@ -201,6 +203,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
         debug_out << "error reached saturation" << endl;
         a_node->m_state = IDLE;
         a_node->m_time = 0;
+        delete a_node->m_packet_queue.front();
         a_node->m_packet_queue.pop();
       } else if (a_node->m_time == a_node->m_time_to_backoff) {
         debug_out << "backoff done start sensing" << endl;
@@ -263,6 +266,11 @@ int main(int argc, char** argv) {
   start_simulation(T * ticksPerSecond, N, A, W, L);
   // compute_performances();
 
-  for (int i = 0; i < N; i++)
+  for (int i = 0; i < N; i++) {
+    while (!nodes[i]->m_packet_queue.empty()) {
+      delete nodes[i]->m_packet_queue.front();
+      nodes[i]->m_packet_queue.pop();
+    }
     delete nodes[i];
+  }
 }
