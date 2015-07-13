@@ -259,6 +259,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
         a_node->m_state = BACKOFF;
         a_node->m_time = 1;
         debug_out << "finished jamming" << endl;
+        a_node->m_finished_transmit_at_tick = current_tick;
       }
       break;
 
