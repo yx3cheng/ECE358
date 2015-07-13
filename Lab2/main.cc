@@ -1,9 +1,11 @@
+#include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <queue>
 #include <vector>
-#include <climits>
 using namespace std;
 
 #ifdef DEBUG
@@ -51,7 +53,7 @@ struct Generator {
   double lambda;
 
   Generator() {
-    srand(time(NULL));
+    // srand(time(NULL));
   }
   double generateExpRandomNum() {
     double U = ((double) (rand() % INT_MAX) / INT_MAX);
@@ -101,14 +103,15 @@ medium_states medium_sense(struct Node* a_node, long current_tick) {
 }
 
 void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) {
-  a_node->m_time++;
+  if (a_node->m_time > 0)
+    a_node->m_time--;
 
   switch (a_node->m_state) {
     case IDLE:
       if (!a_node->m_packet_queue.empty()) {
         debug_out << "start sensing" << endl;
         a_node->m_state = SENSING;
-        a_node->m_time = 0;
+        a_node->m_time = ticksPerSecond * 96.0 / a_W;
       }
       break;
 
@@ -116,22 +119,23 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
       a_node->m_sense_result_mask |= medium_sense(a_node, current_tick);
 
 #ifdef ONE_PERSISTENT
-      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
-        a_node->m_time = 0;
+      if (a_node->m_time == 0) {
         if (a_node->m_sense_result_mask == FREE) {
+          a_node->m_time = (double) ticksPerSecond * a_L / a_W;
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "clear to transmit" << endl;
         } else {
           // debug_out << "redo sensing" << endl;
           a_node->m_sense_result_mask = 0;
+          a_node->m_time = ticksPerSecond * 96.0 / a_W;
         }
       }
 
 #elif NON_PERSISTENT
-      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
-        a_node->m_time = 0;
+      if (a_node->m_time == 0) {
         if (a_node->m_sense_result_mask == FREE) {
+          a_node->m_time = (double) ticksPerSecond * a_L / a_W;
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "clear to transmit" << endl;
@@ -144,16 +148,17 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
                     << " ticks" << endl;
           a_node->m_sense_result_mask = 0;
           a_node->m_state = SENSING_WAIT;
+          a_node->m_time = a_node->m_next_sensing_at_tick;
         }
       }
 
 #elif PRB_PERSISTENT
-      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
-        a_node->m_time = 0;
+      if (a_node->m_time == 0) {
         if (a_node->m_sense_result_mask == FREE) {
 
           double U = ((double) (rand() % INT_MAX) / INT_MAX);
           if (U < a_P) {
+            a_node->m_time = (double) ticksPerSecond * a_L / a_W;
             a_node->m_state = TRANSMIT;
             a_node->m_tick_at_start_transmission = current_tick + 1;
             debug_out << "clear to transmit" << endl;
@@ -163,6 +168,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
             a_node->m_sensing_slot = (double) ticksPerSecond * a_L / a_W;
             a_node->m_time = 0;
             debug_out << "sensing wait for " << a_node->m_sensing_slot << " ticks" << endl;
+            a_node->m_time = a_node->m_sensing_slot;
           }
         } else {
           double U = ((double) (rand() % INT_MAX) / INT_MAX);
@@ -173,6 +179,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
                     << " ticks" << endl;
           a_node->m_sense_result_mask = 0;
           a_node->m_state = SENSING_WAIT;
+          a_node->m_time = a_node->m_next_sensing_at_tick;
         }
       }
 #else
@@ -182,20 +189,21 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
 
 #if defined(NON_PERSISTENT) || defined(PRB_PERSISTENT)
     case SENSING_WAIT:
-      if (a_node->m_time == a_node->m_next_sensing_at_tick) {
+      if (a_node->m_time == 0) {
         debug_out << "restart sensing" << endl;
         a_node->m_state = SENSING;
-        a_node->m_time = 0;
+        a_node->m_sense_result_mask = 0;
+        a_node->m_time = ticksPerSecond * 96.0 / a_W;
       }
       break;
 #endif
 
 #ifdef PRB_PERSISTENT
     case SENSING_WAIT_FOR_SLOT:
-      if (a_node->m_time == a_node->m_sensing_slot) {
+      if (a_node->m_time == 0) {
         debug_out << "sensing slot wait done" << endl;
         a_node->m_state = SENSING_AFTER_SLOT_WAIT;
-        a_node->m_time = 0;
+        a_node->m_time = ticksPerSecond * 96.0 / a_W;
         a_node->m_sense_result_mask = 0;
       }
       break;
@@ -203,11 +211,11 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
     case SENSING_AFTER_SLOT_WAIT:
       a_node->m_sense_result_mask |= medium_sense(a_node, current_tick);
 
-      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
-        a_node->m_time = 0;
+      if (a_node->m_time == 0) {
         if (a_node->m_sense_result_mask == FREE) {
           double U = ((double) (rand() % INT_MAX) / INT_MAX);
           if (U < a_P) {
+            a_node->m_time = (double) ticksPerSecond * a_L / a_W;
             a_node->m_state = TRANSMIT;
             a_node->m_tick_at_start_transmission = current_tick + 1;
             debug_out << "clear to transmit" << endl;
@@ -217,11 +225,12 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
             a_node->m_sensing_slot = (double) ticksPerSecond * a_L / a_W;
             a_node->m_time = 0;
             debug_out << "sensing wait for " << a_node->m_sensing_slot << " ticks" << endl;
+            a_node->m_time = a_node->m_sensing_slot;
           }
         } else {
           // Backoff
           a_node->m_state = BACKOFF;
-          a_node->m_time = 0;
+          a_node->m_time = 1;
         }
       }
 
@@ -231,13 +240,12 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
     case TRANSMIT:
       if (medium_sense(a_node, current_tick) == COLLISION) {
         a_node->m_state = JAMMING;
-        a_node->m_time = 0;
+        a_node->m_time = ticksPerSecond * 48.0 / a_W;
         a_node->m_time_to_backoff = 0;
         debug_out << "jamming" << endl;
-      } else if (a_node->m_time == (double) ticksPerSecond * a_L / a_W)  {
+      } else if (a_node->m_time == 0)  {
         debug_out << "end transmission" << endl;
         a_node->m_state = IDLE;
-        a_node->m_time = 0;
         a_node->m_finished_transmit_at_tick = current_tick;
         transmittedPackets++;
         totalDelay += current_tick - a_node->m_packet_queue.front()->m_generated_time;
@@ -247,9 +255,9 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
       break;
 
     case JAMMING:
-      if (a_node->m_time == ticksPerSecond * 48.0 / a_W) {
+      if (a_node->m_time == 0) {
         a_node->m_state = BACKOFF;
-        a_node->m_time = 0;
+        a_node->m_time = 1;
         debug_out << "finished jamming" << endl;
       }
       break;
@@ -263,19 +271,20 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
         debug_out << "backoff for " << a_node->m_time_to_backoff << " ticks i="
                   << a_node->m_packet_queue.front()->m_i
                   << " R=" << U * pow(2, a_node->m_packet_queue.front()->m_i) << endl;
+        a_node->m_time = a_node->m_time_to_backoff - 1;
       }
 
       if (a_node->m_packet_queue.front()->m_i > 10) {
         // Error. Give up on this frame.
         debug_out << "error reached saturation" << endl;
         a_node->m_state = IDLE;
-        a_node->m_time = 0;
+        a_node->m_time = 1;
         delete a_node->m_packet_queue.front();
         a_node->m_packet_queue.pop();
-      } else if (a_node->m_time == a_node->m_time_to_backoff) {
+      } else if (a_node->m_time == 0) {
         debug_out << "backoff done start sensing" << endl;
         a_node->m_state = SENSING;
-        a_node->m_time = 0;
+        a_node->m_time = ticksPerSecond * 96.0 / a_W;
         a_node->m_time_to_backoff = 0;
       }
       break;
@@ -287,6 +296,8 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) 
 
 void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L, double a_P) {
   for (long current_tick = 0; current_tick < a_totalticks; current_tick++) {
+    long tick_skip = INT_MAX;
+    int num_broadcasting_nodes = 0;
     for (int n = 0; n < a_N; n++) { // loop for number of nodes
       if (nodes[n]->m_generate_at_tick == current_tick) { // generate new packet
         nodes[n]->m_packet_queue.push(new Packet(current_tick));
@@ -294,6 +305,28 @@ void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L, do
       }
 
       tick(nodes[n], current_tick, a_W, a_L, a_P);
+
+      // Optimization: we don't need to iterate through the ticks where
+      // no nodes will perform any actions on.
+      if (nodes[n]->m_state == TRANSMIT || nodes[n]->m_state == JAMMING) {
+        num_broadcasting_nodes++;
+      }
+
+      if (nodes[n]->m_state == IDLE && !nodes[n]->m_packet_queue.empty()) {
+        // If state is idle and its queue is not empty, run at next tick.
+        tick_skip = 0;
+      } else if (nodes[n]->m_time > 0) {
+        tick_skip = min(tick_skip, nodes[n]->m_time);
+      }
+      tick_skip = min(tick_skip, nodes[n]->m_generate_at_tick - current_tick);
+    }
+
+    // Don't skip if more than one broadcasting node to allow transmitting
+    // nodes to detect the collision.
+    if (tick_skip < INT_MAX && tick_skip > 0 && num_broadcasting_nodes <= 1) {
+      current_tick += tick_skip - 1;
+      for (int n = 0; n < a_N; n++)
+        nodes[n]->m_time -= tick_skip - 1;
     }
   }
 }
