@@ -35,3 +35,4 @@ echo '--'
 ./lab2-persistent 40 16 1000000 12000
 ./lab2-persistent 40 20 1000000 12000
 echo 'done'
+

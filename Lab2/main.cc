@@ -12,7 +12,10 @@ using namespace std;
   #define debug_out 0 && cout
 #endif
 
-enum station_states { IDLE, SENSING, SENSING_WAIT, TRANSMIT, JAMMING, BACKOFF };
+enum station_states {
+  IDLE, SENSING, SENSING_WAIT, SENSING_WAIT_FOR_SLOT, SENSING_AFTER_SLOT_WAIT,
+  TRANSMIT, JAMMING, BACKOFF
+};
 enum medium_states { FREE = 0x1, BUSY = 0x2, COLLISION = 0x4 };
 
 struct Packet {
@@ -36,8 +39,11 @@ struct Node {
 
   long m_finished_transmit_at_tick;
 
-#if NON_PERSISTENT
+#if defined(NON_PERSISTENT) || defined(PRB_PERSISTENT)
   int m_next_sensing_at_tick;
+#endif
+#ifdef PRB_PERSISTENT
+  int m_sensing_slot;
 #endif
 };
 
@@ -94,7 +100,7 @@ medium_states medium_sense(struct Node* a_node, long current_tick) {
   }
 }
 
-void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
+void tick(struct Node* a_node, long current_tick, int a_W, int a_L, double a_P) {
   a_node->m_time++;
 
   switch (a_node->m_state) {
@@ -129,41 +135,96 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
           a_node->m_state = TRANSMIT;
           a_node->m_tick_at_start_transmission = current_tick + 1;
           debug_out << "clear to transmit" << endl;
-          a_node->m_packet_queue.front()->m_i = 0;
         } else {
-          a_node->m_packet_queue.front()->m_i++;
-          if (a_node->m_packet_queue.front()->m_i > 10) {
-            debug_out << "error reached sensing trials saturation" << endl;
-            a_node->m_state = IDLE;
-            a_node->m_time = 0;
-            delete a_node->m_packet_queue.front();
-            a_node->m_packet_queue.pop();
-            break;
-          }
           double U = ((double) (rand() % INT_MAX) / INT_MAX);
-          a_node->m_next_sensing_at_tick = (ticksPerSecond) *
+          a_node->m_next_sensing_at_tick = ticksPerSecond *
               U * pow(2, a_node->m_packet_queue.front()->m_i);
           debug_out << "wait for next sensing in "
                     << a_node->m_next_sensing_at_tick
-                    << " ticks tries="
-                    << a_node->m_packet_queue.front()->m_i << endl;
+                    << " ticks" << endl;
           a_node->m_sense_result_mask = 0;
           a_node->m_state = SENSING_WAIT;
         }
       }
 
 #elif PRB_PERSISTENT
+      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
+        a_node->m_time = 0;
+        if (a_node->m_sense_result_mask == FREE) {
 
+          double U = ((double) (rand() % INT_MAX) / INT_MAX);
+          if (U < a_P) {
+            a_node->m_state = TRANSMIT;
+            a_node->m_tick_at_start_transmission = current_tick + 1;
+            debug_out << "clear to transmit" << endl;
+          } else {
+            // Wait for slot.
+            a_node->m_state = SENSING_WAIT_FOR_SLOT;
+            a_node->m_sensing_slot = (double) ticksPerSecond * a_L / a_W;
+            a_node->m_time = 0;
+            debug_out << "sensing wait for " << a_node->m_sensing_slot << " ticks" << endl;
+          }
+        } else {
+          double U = ((double) (rand() % INT_MAX) / INT_MAX);
+          a_node->m_next_sensing_at_tick = ticksPerSecond *
+              U * pow(2, a_node->m_packet_queue.front()->m_i);
+          debug_out << "wait for next sensing in "
+                    << a_node->m_next_sensing_at_tick
+                    << " ticks" << endl;
+          a_node->m_sense_result_mask = 0;
+          a_node->m_state = SENSING_WAIT;
+        }
+      }
+#else
+  #error No mode defined
 #endif
-
       break;
 
-#ifdef NON_PERSISTENT
+#if defined(NON_PERSISTENT) || defined(PRB_PERSISTENT)
     case SENSING_WAIT:
       if (a_node->m_time == a_node->m_next_sensing_at_tick) {
+        debug_out << "restart sensing" << endl;
         a_node->m_state = SENSING;
         a_node->m_time = 0;
       }
+      break;
+#endif
+
+#ifdef PRB_PERSISTENT
+    case SENSING_WAIT_FOR_SLOT:
+      if (a_node->m_time == a_node->m_sensing_slot) {
+        debug_out << "sensing slot wait done" << endl;
+        a_node->m_state = SENSING_AFTER_SLOT_WAIT;
+        a_node->m_time = 0;
+        a_node->m_sense_result_mask = 0;
+      }
+      break;
+
+    case SENSING_AFTER_SLOT_WAIT:
+      a_node->m_sense_result_mask |= medium_sense(a_node, current_tick);
+
+      if (a_node->m_time == ticksPerSecond * 96.0 / a_W) {
+        a_node->m_time = 0;
+        if (a_node->m_sense_result_mask == FREE) {
+          double U = ((double) (rand() % INT_MAX) / INT_MAX);
+          if (U < a_P) {
+            a_node->m_state = TRANSMIT;
+            a_node->m_tick_at_start_transmission = current_tick + 1;
+            debug_out << "clear to transmit" << endl;
+          } else {
+            // Wait for slot.
+            a_node->m_state = SENSING_WAIT_FOR_SLOT;
+            a_node->m_sensing_slot = (double) ticksPerSecond * a_L / a_W;
+            a_node->m_time = 0;
+            debug_out << "sensing wait for " << a_node->m_sensing_slot << " ticks" << endl;
+          }
+        } else {
+          // Backoff
+          a_node->m_state = BACKOFF;
+          a_node->m_time = 0;
+        }
+      }
+
       break;
 #endif
 
@@ -224,7 +285,7 @@ void tick(struct Node* a_node, long current_tick, int a_W, int a_L) {
   }
 }
 
-void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
+void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L, double a_P) {
   for (long current_tick = 0; current_tick < a_totalticks; current_tick++) {
     for (int n = 0; n < a_N; n++) { // loop for number of nodes
       if (nodes[n]->m_generate_at_tick == current_tick) { // generate new packet
@@ -232,7 +293,7 @@ void start_simulation (long a_totalticks, int a_N, int a_A, int a_W, int a_L) {
         nodes[n]->m_generate_at_tick = current_tick + generator.generateExpRandomNum() * ticksPerSecond;
       }
 
-      tick(nodes[n], current_tick, a_W, a_L);
+      tick(nodes[n], current_tick, a_W, a_L, a_P);
     }
   }
 }
@@ -245,7 +306,8 @@ void compute_performances () {
 }
 
 int main(int argc, char** argv) {
-  int N, A, W, L, P = 0;
+  int N, A, W, L;
+  double P = 0;
   if (argc != 5 && argc != 6) {
     cout << "Usage: N A W L [P]\n";
     return 0;
@@ -255,7 +317,7 @@ int main(int argc, char** argv) {
   W = atoi(argv[3]); // LAN throughput in bits per second
   L = atoi(argv[4]); // Packet length in bits
   if (argc == 6)
-    P = atoi(argv[5]); // Persistence parameter
+    P = atof(argv[5]); // Persistence parameter
 
   // set generator lamda
   generator.lambda = A;
@@ -273,7 +335,7 @@ int main(int argc, char** argv) {
     nodes.push_back(node);
   }
 
-  start_simulation(T * ticksPerSecond, N, A, W, L);
+  start_simulation(T * ticksPerSecond, N, A, W, L, P);
   compute_performances();
 
   for (int i = 0; i < N; i++) {
