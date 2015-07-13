@@ -53,7 +53,7 @@ struct Generator {
   double lambda;
 
   Generator() {
-    // srand(time(NULL));
+    srand(time(NULL));
   }
   double generateExpRandomNum() {
     double U = ((double) (rand() % INT_MAX) / INT_MAX);
